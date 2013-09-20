@@ -190,10 +190,15 @@ header("Content-type: text/xml; charset=utf-8");
                     $fullname = $currentitem['user']['name'];
                     $tweetTitle = $currentitem['text'];
                endif;
+                 if(is_array($currentitem['entities']['urls']) && count($currentitem['entities']['urls']) == 1) :
+                     $url = $currentitem['entities']['urls'][0]['expanded_url'];
+                 else :
+                     $url = 'https://twitter.com/'.$twitterName.'/statuses/'.$currentitem['id_str'];
+                 endif;
                 ?>
 				<title>[<?php echo $tweeter; ?>] <?php echo $tweetTitle; ?> </title>
                 <pubDate><?php echo reformatDate($currentitem['created_at']); ?></pubDate>
-                <link>https://twitter.com/<?php echo $twitterName ?>/statuses/<?php echo $currentitem['id_str']; ?></link>
+                <link><?php echo $url; ?></link>
                 <guid isPermaLink='false'><?php echo $currentitem['id_str']; ?></guid>
 
                 <description>
