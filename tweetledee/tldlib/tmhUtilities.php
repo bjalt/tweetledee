@@ -72,12 +72,18 @@ class tmhUtilities {
             $href = "@<a href=\"https://twitter.com/{$value['screen_name']}\" title=\"{$value['name']}\"{$target}>{$value['screen_name']}</a>";
             break;
           case 'urls':
-          case 'media':
             $url = empty($value['expanded_url']) ? $value['url'] : $value['expanded_url'];
             $display = isset($value['display_url']) ? $value['display_url'] : str_replace('http://', '', $url);
             // Not all pages are served in UTF-8 so you may need to do this ...
             $display = urldecode(str_replace('%E2%80%A6', '&hellip;', urlencode($display)));
             $href = "<a href=\"{$value['url']}\"{$target}>{$display}</a>";
+            break;
+          case 'media':
+            $url = empty($value['expanded_url']) ? $value['url'] : $value['expanded_url'];
+            $display = isset($value['media_url']) ? $value['media_url'] : str_replace('http://', '', $url);
+            // Not all pages are served in UTF-8 so you may need to do this ...
+            $display = urldecode(str_replace('%E2%80%A6', '&hellip;', urlencode($display)));
+            $href = "<br><a href=\"{$value['url']}\"{$target}><img src=\"{$display}\"></a>";
             break;
         }
         $keys[$value['indices']['0']] = mb_substr(
