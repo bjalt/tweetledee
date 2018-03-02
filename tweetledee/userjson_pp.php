@@ -2,8 +2,8 @@
 /***********************************************************************************************
  * Tweetledee  - Incredibly easy access to Twitter data
  *   userjson_pp.php -- User timeline results formatted as pretty printed JSON
- *   Version: 0.3.6
- * Copyright 2013 Christopher Simpkins
+ *   Version: 0.4.1
+ * Copyright 2014 Christopher Simpkins
  * MIT License
  ************************************************************************************************/
 /*-----------------------------------------------------------------------------------------------
@@ -20,8 +20,7 @@
             e.g. http://<yourdomain>/tweetledee/userjson.php?xrt=1
     - 'xrp' - exclude replies (1=true, default = false)
             e.g. http://<yourdomain>/tweetledee/userjson.php?xrp=1
-    - Example of all of the available parameters:
-            e.g. http://<yourdomain>/tweetledee/userjson.php?c=100&xrt=1&xrp=1&user=cooluser
+    - 'cache_interval' - specify the duration of the cache interval in seconds (default = 90sec)
 --------------------------------------------------------------------------------------------------*/
 /*******************************************************************
 *  Debugging Flag
@@ -45,41 +44,20 @@ require 'tldlib/keys/tweetledee_keys.php';
 // include Geoff Smith's utility functions
 require 'tldlib/tldUtilities.php';
 
+// include Christian Varga's twitter cache
+require 'tldlib/tldCache.php';
+
+// include Martín Lucas Golini's pretty print functions
+require 'tldlib/tldPrettyPrint.php';
+
 /*******************************************************************
-*  OAuth
+*  Defaults
 ********************************************************************/
-$tmhOAuth = new tmhOAuth(array(
-            'consumer_key'        => $my_consumer_key,
-            'consumer_secret'     => $my_consumer_secret,
-            'user_token'          => $my_access_token,
-            'user_secret'         => $my_access_token_secret,
-            'curl_ssl_verifypeer' => false
-        ));
-
-
-// request the user information
-$code = $tmhOAuth->user_request(array(
-			'url' => $tmhOAuth->url('1.1/account/verify_credentials')
-          )
-        );
-
-// Display error response if do not receive 200 response code
-if ($code <> 200) {
-    if ($code == 429) {
-        die("Exceeded Twitter API rate limit");
-    }
-    echo $tmhOAuth->response['error'];
-    die("verify_credentials connection failure");
-}
-
-// Decode JSON
-$data = json_decode($tmhOAuth->response['response'], true);
-
-// Defaults
 $count = 25;  //default tweet number = 25
 $include_retweets = true;  //default to include retweets
 $exclude_replies = false;  //default to include replies
-$screen_name = $data['screen_name'];
+$screen_name = '';
+$cache_interval = 90; // default cache interval = 90 seconds
 
 /*******************************************************************
 *   Parameters
@@ -111,6 +89,9 @@ if (defined('STDIN')) {
         if (isset($params['user'])){
             $screen_name = $params['user'];
         }
+        if (isset($params['cache_interval'])){
+            $cache_interval = $params['cache_interval'];
+        }
     }
 }
 // Web server URL parameter definitions //
@@ -137,30 +118,49 @@ else {
     if (isset($_GET["user"])){
         $screen_name = $_GET["user"];
     }
+    // cache_interval = the amount of time to keep the cached file
+    if (isset($_GET["cache_interval"])){
+        $cache_interval = $_GET["cache_interval"];
+    }
 } // end else block
 
+/*******************************************************************
+*  OAuth
+********************************************************************/
+
+$tldCache = new tldCache(array(
+            'consumer_key'        => $my_consumer_key,
+            'consumer_secret'     => $my_consumer_secret,
+            'user_token'          => $my_access_token,
+            'user_secret'         => $my_access_token_secret,
+            'curl_ssl_verifypeer' => false
+        ), $cache_interval);
+
+// request the user information
+$data = $tldCache->auth_request();
+
+// Parse information from response
+$twitterName = $data['screen_name'];
+$fullName = $data['name'];
+$twitterAvatarUrl = $data['profile_image_url'];
+
+if ( $screen_name == '' ) $screen_name = $data['screen_name'];
 
 /*******************************************************************
 *  Request
 ********************************************************************/
-$code = $tmhOAuth->user_request(array(
-			'url' => $tmhOAuth->url('1.1/statuses/user_timeline'),
-			'params' => array(
-          		'include_entities' => true,
-    			'count' => $count,
-    			'exclude_replies' => $exclude_replies,
-    			'include_rts' => $include_retweets,
-    			'screen_name' => $screen_name,
-        	)
+
+$userTimelineObj = $tldCache->user_request(array(
+            'url' => '1.1/statuses/user_timeline',
+            'params' => array(
+                'include_entities' => true,
+                'count' => $count,
+                'exclude_replies' => $exclude_replies,
+                'include_rts' => $include_retweets,
+                'screen_name' => $screen_name,
+            )
         ));
 
-// Anything except code 200 is a failure to get the information
-if ($code <> 200) {
-    echo $tmhOAuth->response['error'];
-    die("user_timeline connection failure");
-}
-
-$userTimelineObj = json_decode($tmhOAuth->response['response'], true);
 header('Content-Type: application/json');
-echo json_encode($userTimelineObj, JSON_PRETTY_PRINT);
+echo json_encode_pretty_print($userTimelineObj);
 

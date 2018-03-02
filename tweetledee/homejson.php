@@ -2,8 +2,8 @@
 /***********************************************************************************************
  * Tweetledee  - Incredibly easy access to Twitter data
  *   homejson.php -- Home timeline results formatted as JSON
- *   Version: 0.3.6
- * Copyright 2013 Christopher Simpkins
+ *   Version: 0.4.1
+ * Copyright 2014 Christopher Simpkins
  * MIT License
  ************************************************************************************************/
 /*-----------------------------------------------------------------------------------------------
@@ -16,8 +16,7 @@
             e.g. http://<yourdomain>/tweetledee/homejson.php?c=100
     - 'xrp' - exclude replies (1=true, default = false)
             e.g. http://<yourdomain>/tweetledee/homejson.php?xrp=1
-    - Example of all of the available parameters:
-            e.g. http://<yourdomain>/tweetledee/homejson.php?c=100&xrp=1
+    - 'cache_interval' - specify the duration of the cache interval in seconds (default = 90sec)
 --------------------------------------------------------------------------------------------------*/
 /*******************************************************************
 *  Debugging Flag
@@ -49,41 +48,15 @@ require 'tldlib/keys/tweetledee_keys.php';
 // include Geoff Smith's utility functions
 require 'tldlib/tldUtilities.php';
 
-/*******************************************************************
-*  OAuth
-********************************************************************/
-$tmhOAuth = new tmhOAuth(array(
-            'consumer_key'        => $my_consumer_key,
-            'consumer_secret'     => $my_consumer_secret,
-            'user_token'          => $my_access_token,
-            'user_secret'         => $my_access_token_secret,
-            'curl_ssl_verifypeer' => false
-        ));
-
-// request the user information
-$code = $tmhOAuth->user_request(array(
-			'url' => $tmhOAuth->url('1.1/account/verify_credentials')
-          )
-        );
-
-// Display error response if do not receive 200 response code
-if ($code <> 200) {
-    if ($code == 429) {
-        die("Exceeded Twitter API rate limit");
-    }
-    echo $tmhOAuth->response['error'];
-    die("verify_credentials connection failure");
-}
-
-// Decode JSON
-$data = json_decode($tmhOAuth->response['response'], true);
+// include Christian Varga's twitter cache
+require 'tldlib/tldCache.php';
 
 /*******************************************************************
 *  Defaults
 ********************************************************************/
 $count = 25;  //default tweet number = 25
 $exclude_replies = false;  //default to include replies
-$screen_name = $data['screen_name'];
+$cache_interval = 90; // default cache interval = 90 seconds
 
 /*******************************************************************
 *   Parameters
@@ -106,6 +79,12 @@ if (defined('STDIN')) {
         if (isset($params['xrp'])){
             $exclude_replies = true;
         }
+        if (isset($params['xrp'])){
+            $exclude_replies = true;
+        }
+        if (isset($params['cache_interval'])){
+            $cache_interval = $params['cache_interval'];
+        }
     }
 
 } //end if
@@ -115,7 +94,7 @@ else{
     if (isset($_GET["c"])){
         $getcount = $_GET["c"];
         if ($getcount > 0 && $getcount <= 200){
-        	$count = $getcount;
+            $count = $getcount;
         }
     }
 
@@ -125,27 +104,48 @@ else{
             $exclude_replies = true;
         }
     }
+
+    // cache_interval = the amount of time to keep the cached file
+    if (isset($_GET["cache_interval"])){
+        $cache_interval = $_GET["cache_interval"];
+    }
 } //end else
+
+/*******************************************************************
+*  OAuth
+********************************************************************/
+
+$tldCache = new tldCache(array(
+            'consumer_key'        => $my_consumer_key,
+            'consumer_secret'     => $my_consumer_secret,
+            'user_token'          => $my_access_token,
+            'user_secret'         => $my_access_token_secret,
+            'curl_ssl_verifypeer' => false
+        ), $cache_interval);
+
+// request the user information
+$data = $tldCache->auth_request();
+
+// Parse information from response
+$twitterName = $data['screen_name'];
+$fullName = $data['name'];
+$twitterAvatarUrl = $data['profile_image_url'];
+$feedTitle = ' Twitter home timeline for ' . $twitterName;
+$screen_name = $data['screen_name'];
+
 
 /*******************************************************************
 *  Request
 ********************************************************************/
-$code = $tmhOAuth->user_request(array(
-			'url' => $tmhOAuth->url('1.1/statuses/home_timeline'),
-			'params' => array(
-          		'include_entities' => true,
-    			'count' => $count,
-    			'exclude_replies' => $exclude_replies,
-        	)
+$homeTimelineObj = $tldCache->user_request(array(
+            'url' => '1.1/statuses/home_timeline',
+            'params' => array(
+                'include_entities' => true,
+                'count' => $count,
+                'exclude_replies' => $exclude_replies,
+            )
         ));
 
-// Anything except code 200 is a failure to get the information
-if ($code <> 200) {
-    echo $tmhOAuth->response['error'];
-    die("home_timeline connection failure");
-}
-
-$homeTimelineObj = json_decode($tmhOAuth->response['response'], true);
 header('Content-Type: application/json');
 echo json_encode($homeTimelineObj);
 
