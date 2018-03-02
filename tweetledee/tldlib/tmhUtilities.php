@@ -80,7 +80,7 @@ class tmhUtilities {
             break;
           case 'media':
             $url = empty($value['expanded_url']) ? $value['url'] : $value['expanded_url'];
-            $display = isset($value['media_url']) ? $value['media_url'] : str_replace('http://', '', $url);
+            $display = isset($value['media_url_https']) ? $value['media_url_https'] : str_replace('http://', '', $url);
             // Not all pages are served in UTF-8 so you may need to do this ...
             $display = urldecode(str_replace('%E2%80%A6', '&hellip;', urlencode($display)));
             $href = "<br><a href=\"{$value['url']}\"{$target}><img src=\"{$display}\"></a>";
